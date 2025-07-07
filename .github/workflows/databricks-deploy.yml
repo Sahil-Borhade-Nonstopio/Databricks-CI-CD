@@ -1,4 +1,4 @@
-name: Databricks CI/CD Pipeline
+name: Databricks CI/CD Pipeline (Environment Variables)
 
 on:
   push:
@@ -9,6 +9,10 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     
     steps:
     - name: Checkout code
@@ -22,14 +26,6 @@ jobs:
     - name: Install Databricks CLI
       run: |
         pip install databricks-cli
-    
-    - name: Configure Databricks CLI
-      run: |
-        echo "${{ secrets.DATABRICKS_HOST }}" > ~/.databrickscfg.host
-        echo "${{ secrets.DATABRICKS_TOKEN }}" | databricks configure --token
-      env:
-        DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-        DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     
     - name: Test Databricks connection
       run: |
