@@ -1,0 +1,74 @@
+name: Databricks CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install Databricks CLI
+      run: |
+        pip install databricks-cli
+    
+    - name: Configure Databricks CLI
+      run: |
+        echo "${{ secrets.DATABRICKS_HOST }}" > ~/.databrickscfg.host
+        echo "${{ secrets.DATABRICKS_TOKEN }}" | databricks configure --token
+      env:
+        DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+        DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    
+    - name: Test Databricks connection
+      run: |
+        databricks workspace ls
+    
+    - name: Get branch name
+      id: branch
+      run: |
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          echo "branch_name=${{ github.head_ref }}" >> $GITHUB_OUTPUT
+        else
+          echo "branch_name=${GITHUB_REF##*/}" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Deploy to Databricks (Main Branch)
+      if: github.ref == 'refs/heads/main'
+      run: |
+        FOLDER="/release"
+        echo "Deploying to folder: $FOLDER"
+        
+        # Remove old release folder if exists
+        databricks workspace rm $FOLDER --recursive || true
+        
+        # Import notebooks to Databricks workspace
+        databricks workspace import_dir ./notebooks $FOLDER --exclude-hidden-files
+        
+        echo "Deployment completed successfully!"
+    
+    - name: Deploy to Development (Feature Branches)
+      if: github.ref != 'refs/heads/main'
+      run: |
+        BRANCH_NAME="${{ steps.branch.outputs.branch_name }}"
+        FOLDER="/dev/${BRANCH_NAME}"
+        echo "Deploying to development folder: $FOLDER"
+        
+        # Remove old development folder if exists
+        databricks workspace rm $FOLDER --recursive || true
+        
+        # Import notebooks to Databricks workspace
+        databricks workspace import_dir ./notebooks $FOLDER --exclude-hidden-files
+        
+        echo "Development deployment completed successfully!"
